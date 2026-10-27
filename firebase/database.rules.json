@@ -1,0 +1,14 @@
+{
+  "rules": {
+    ".read": true,
+    "sensores": { ".write": true },
+    "historico": { ".write": true },
+    "comandos": {
+      ".write": true,
+      "auto": { ".validate": "newData.isBoolean()" },
+      "ml": { ".validate": "newData.isBoolean()" },
+      "manual_s": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 15" }
+    },
+    "simulacao": { ".write": true }
+  }
+}
