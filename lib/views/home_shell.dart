@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/app_controller.dart';
+import 'alertas_page.dart';
 import 'config_page.dart';
 import 'controle_page.dart';
+import 'cultivo_page.dart';
 import 'dashboard_page.dart';
 import 'decisoes_page.dart';
 import 'historico_page.dart';
@@ -19,7 +21,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _aba = 0;
 
-  static const _titulos = ['Minha Horta', 'Histórico', 'Decisões da IA', 'Controle'];
+  static const _titulos = ['Minha Horta', 'Histórico', 'Cultivo', 'Decisões da IA', 'Controle'];
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +48,16 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ]),
         actions: [
+          IconButton(
+            tooltip: 'Alertas',
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const AlertasPage())),
+            icon: Badge(
+              isLabelVisible: c.alertasNaoLidos > 0,
+              label: Text('${c.alertasNaoLidos > 9 ? '9+' : c.alertasNaoLidos}'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+          ),
           Tooltip(
             message: online ? 'ESP32 online' : 'ESP32 sem dados recentes',
             child: Padding(
@@ -64,6 +76,7 @@ class _HomeShellState extends State<HomeShell> {
       body: IndexedStack(index: _aba, children: const [
         DashboardPage(),
         HistoricoPage(),
+        CultivoPage(),
         DecisoesPage(),
         ControlePage(),
       ]),

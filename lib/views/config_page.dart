@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../controllers/app_controller.dart';
 import '../controllers/formatos.dart';
+import 'cultivo_page.dart';
 import 'widgets.dart';
 
 class ConfigPage extends StatefulWidget {
@@ -46,11 +47,11 @@ class _ConfigPageState extends State<ConfigPage> {
             RadioListTile<bool>(
               value: false,
               groupValue: c.simulado,
-              onChanged: c.firebaseDisponivel ? (_) => c.setUsarDemo(false) : null,
-              title: const Text('Firebase (ESP32 ou simulador Python)'),
-              subtitle: Text(c.firebaseDisponivel
-                  ? (c.conectado && !c.simulado ? 'Conectado ao Realtime Database' : 'Dados reais em tempo real')
-                  : 'Indisponível: rode "flutterfire configure"'),
+              onChanged: (_) => c.setUsarDemo(false),
+              title: const Text('Firebase (dados do ESP32)'),
+              subtitle: Text(c.simulado
+                  ? 'Dados reais da planta'
+                  : (c.conectado ? 'Conectado ao banco' : 'Sem resposta do banco: confira a internet e a URL')),
             ),
             const Divider(height: 1),
             RadioListTile<bool>(
@@ -68,9 +69,9 @@ class _ConfigPageState extends State<ConfigPage> {
             TextField(
               controller: _url,
               decoration: const InputDecoration(
-                labelText: 'URL do Realtime Database (opcional)',
+                labelText: 'URL do Realtime Database',
                 hintText: 'meu-projeto-default-rtdb.firebaseio.com',
-                helperText: 'O mesmo FIREBASE_HOST do secrets.h. Vazio = usa o do firebase_options.dart',
+                helperText: 'O mesmo FIREBASE_HOST do secrets.h. Vazio = banco padrão do projeto',
                 helperMaxLines: 2,
                 border: OutlineInputBorder(),
               ),
@@ -78,10 +79,62 @@ class _ConfigPageState extends State<ConfigPage> {
               onSubmitted: c.setDbUrl,
             ),
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(onPressed: () => c.setDbUrl(_url.text), child: const Text('Aplicar')),
+            Row(children: [
+              Expanded(
+                child: Text('Em uso: ${c.urlEfetiva.replaceFirst('https://', '')}',
+                    style: tt.bodySmall, overflow: TextOverflow.ellipsis),
+              ),
+              TextButton(onPressed: () => c.setDbUrl(_url.text), child: const Text('Aplicar')),
+            ]),
+          ]),
+        ),
+        const Secao('Cultivo'),
+        Painel(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: ListTile(
+            leading: const Icon(Icons.event),
+            title: const Text('Data do plantio'),
+            subtitle: Text(c.config.plantio == null ? 'não definida' : fmtData(c.config.plantio!)),
+            trailing: const Icon(Icons.edit_calendar_outlined),
+            onTap: () => escolherPlantio(context, c),
+          ),
+        ),
+        const Secao('Comparação de economia'),
+        Painel(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Temporizador fixo de referência: ${c.config.timerRegas} regas de '
+                '${fmtNum(c.config.timerS, 0)} s por dia '
+                '(≈ ${fmtVolume(c.config.timerSegundosDia * c.vazaoMlS)}/dia)',
+                style: tt.bodyMedium),
+            const SizedBox(height: 10),
+            Row(children: [
+              const Expanded(child: Text('Regas por dia')),
+              IconButton(
+                onPressed: c.config.timerRegas > 1
+                    ? () => c.setConfig(c.config.copyWith(timerRegas: c.config.timerRegas - 1))
+                    : null,
+                icon: const Icon(Icons.remove_circle_outline),
+              ),
+              Text('${c.config.timerRegas}', style: tt.titleMedium),
+              IconButton(
+                onPressed: c.config.timerRegas < 12
+                    ? () => c.setConfig(c.config.copyWith(timerRegas: c.config.timerRegas + 1))
+                    : null,
+                icon: const Icon(Icons.add_circle_outline),
+              ),
+            ]),
+            Text('Segundos por rega: ${fmtNum(c.config.timerS, 0)} s', style: tt.bodyMedium),
+            Slider(
+              value: c.config.timerS.clamp(1, 30).toDouble(),
+              min: 1,
+              max: 30,
+              divisions: 29,
+              label: '${fmtNum(c.config.timerS, 0)} s',
+              onChanged: (v) => c.setConfig(c.config.copyWith(timerS: v.roundToDouble())),
             ),
+            Text('É o que uma pessoa faria regando por horário fixo. Combine esse valor com o '
+                'orientador: a economia mostrada no Histórico é calculada contra ele.',
+                style: tt.bodySmall),
           ]),
         ),
         const Secao('Parâmetros'),
@@ -117,8 +170,8 @@ class _ConfigPageState extends State<ConfigPage> {
             Slider(
               value: c.limiteHistorico.toDouble(),
               min: 200,
-              max: 3000,
-              divisions: 14,
+              max: 6000,
+              divisions: 29,
               label: '${c.limiteHistorico}',
               onChanged: (v) => c.setLimiteHistorico(v.round()),
             ),

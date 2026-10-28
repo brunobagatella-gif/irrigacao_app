@@ -1,26 +1,15 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'controllers/app_controller.dart';
-import 'firebase_options.dart';
 import 'views/home_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-
-  var firebaseOk = false;
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    firebaseOk = true;
-  } catch (e) {
-    debugPrint('Firebase indisponível, abrindo em modo demonstração: $e');
-  }
-
   runApp(ChangeNotifierProvider(
-    create: (_) => AppController(prefs: prefs, firebaseDisponivel: firebaseOk),
+    create: (_) => AppController(prefs: prefs),
     child: const IrrigacaoApp(),
   ));
 }

@@ -18,6 +18,7 @@ class NavHorta extends StatelessWidget {
   static const itens = [
     (Icons.yard_outlined, Icons.yard, 'Início'),
     (Icons.grass_outlined, Icons.grass, 'Histórico'),
+    (Icons.local_florist_outlined, Icons.local_florist, 'Cultivo'),
     (Icons.eco_outlined, Icons.eco, 'Decisões'),
     (Icons.water_drop_outlined, Icons.water_drop, 'Controle'),
   ];
@@ -50,8 +51,8 @@ class NavHorta extends StatelessWidget {
         ),
         Positioned(
           top: grama,
-          left: 8,
-          right: 8,
+          left: 4,
+          right: 4,
           bottom: inferior,
           child: Row(children: [
             for (var i = 0; i < itens.length; i++)
@@ -97,7 +98,7 @@ class _ItemNav extends StatelessWidget {
           AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOut,
-            width: ativo ? 58 : 44,
+            width: ativo ? 54 : 40,
             height: 32,
             decoration: BoxDecoration(
               color: ativo ? verde : Colors.transparent,
@@ -112,8 +113,11 @@ class _ItemNav extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             texto,
+            maxLines: 1,
+            overflow: TextOverflow.fade,
+            softWrap: false,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: ativo ? FontWeight.w800 : FontWeight.w500,
               color: ativo ? verdeEscuro : const Color(0xFF4A5E45),
             ),

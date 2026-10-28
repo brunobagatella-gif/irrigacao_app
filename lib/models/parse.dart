@@ -36,3 +36,16 @@ DateTime? tempoDaChavePush(String? key) {
   }
   return DateTime.fromMillisecondsSinceEpoch(ms);
 }
+
+/// Prefixo de 8 caracteres de uma chave push para o instante [t].
+/// Como as chaves são ordenadas pelo tempo, `orderByKey().startAt(prefixo)`
+/// encontra o primeiro registro a partir de [t] sem baixar o histórico todo.
+String prefixoChavePush(DateTime t) {
+  var ms = t.millisecondsSinceEpoch;
+  final out = List<String>.filled(8, '-');
+  for (var i = 7; i >= 0; i--) {
+    out[i] = _pushChars[ms % 64];
+    ms = ms ~/ 64;
+  }
+  return out.join();
+}

@@ -2,12 +2,21 @@
   "rules": {
     ".read": true,
     "sensores": { ".write": true },
-    "historico": { ".write": true },
+    "historico": {
+      ".write": true,
+      ".indexOn": ["irrigado_s"]
+    },
     "comandos": {
       ".write": true,
       "auto": { ".validate": "newData.isBoolean()" },
       "ml": { ".validate": "newData.isBoolean()" },
       "manual_s": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 15" }
+    },
+    "config": {
+      ".write": true,
+      "plantio": { ".validate": "newData.isNumber()" },
+      "timer_regas": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 12" },
+      "timer_s": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 60" }
     },
     "simulacao": { ".write": true }
   }

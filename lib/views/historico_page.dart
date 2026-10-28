@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../controllers/app_controller.dart';
 import '../controllers/formatos.dart';
 import '../models/leitura.dart';
+import 'config_page.dart';
 import 'widgets.dart';
 
 class HistoricoPage extends StatefulWidget {
@@ -38,6 +39,8 @@ class _HistoricoPageState extends State<HistoricoPage> {
     final proj = _projecaoSolo(dados, fim);
 
     return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), children: [
+      const EconomiaCard(),
+      const SizedBox(height: 16),
       Center(
         child: SegmentedButton<int>(
           segments: const [
@@ -322,4 +325,157 @@ class _Mini extends StatelessWidget {
       ]),
     );
   }
+}
+
+/// Água usada pelo sistema × um temporizador fixo de referência (configurável).
+class EconomiaCard extends StatelessWidget {
+  const EconomiaCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.watch<AppController>();
+    final e = c.economia;
+    final f = e.fracao;
+    final cfg = c.config;
+    final economizou = f != null && f >= 0;
+    final ref = '${cfg.timerRegas} regas de ${fmtNum(cfg.timerS, 0)} s/dia';
+
+    final cor1 = f == null ? const Color(0xFF78909C) : (economizou ? const Color(0xFF43A047) : const Color(0xFFEF6C00));
+    final cor2 = f == null ? const Color(0xFF455A64) : (economizou ? const Color(0xFF1B5E20) : const Color(0xFFBF360C));
+
+    final maxY = [for (final d in e.semana) math.max(d.realMl, d.timerMl)].fold<double>(0, math.max) / 1000 * 1.2;
+
+    return Column(children: [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(colors: [cor1, cor2], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        ),
+        child: DefaultTextStyle(
+          style: const TextStyle(color: Colors.white),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Expanded(
+                child: Text('Economia de água no ciclo', style: TextStyle(fontSize: 12.5, color: Color(0xFFE8F5E9))),
+              ),
+              InkWell(
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConfigPage())),
+                child: const Icon(Icons.tune, color: Colors.white70, size: 18),
+              ),
+            ]),
+            const SizedBox(height: 2),
+            if (f == null)
+              const Text('Aguardando um dia completo de dados',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))
+            else
+              Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                Text('${economizou ? '−' : '+'}${(f.abs() * 100).round()}%',
+                    style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800)),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                      economizou
+                          ? '${fmtVolume(e.timerMl - e.realMl)} a menos'
+                          : '${fmtVolume(e.realMl - e.timerMl)} a mais',
+                      style: const TextStyle(fontSize: 13)),
+                ),
+              ]),
+            Text(
+                f == null
+                    ? 'Comparação com um temporizador fixo de $ref.'
+                    : 'vs. temporizador fixo ($ref) · ${e.dias} dia${e.dias == 1 ? '' : 's'} completos',
+                style: const TextStyle(fontSize: 11.5, color: Color(0xE6FFFFFF))),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Painel(
+        padding: const EdgeInsets.fromLTRB(8, 14, 12, 6),
+        child: Column(children: [
+          SizedBox(
+            height: 130,
+            child: BarChart(BarChartData(
+              maxY: maxY <= 0 ? 1 : maxY,
+              borderData: FlBorderData(show: false),
+              gridData: FlGridData(
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: Theme.of(context).colorScheme.outlineVariant, strokeWidth: 0.6),
+              ),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 30,
+                    getTitlesWidget: (v, meta) => Text(fmtNum(v, 1), style: const TextStyle(fontSize: 9)),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 20,
+                    getTitlesWidget: (v, meta) {
+                      final i = v.toInt();
+                      if (i < 0 || i >= e.semana.length) return const SizedBox.shrink();
+                      final d = e.semana[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(d.parcial ? 'hoje' : fmtDiaCurto(d.dia),
+                            style: const TextStyle(fontSize: 10, color: Colors.black54)),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipItem: (g, gi, rod, ri) => BarTooltipItem(
+                    '${ri == 0 ? 'Temporizador' : 'Minha Horta'}\n${fmtNum(rod.toY, 2)} L',
+                    const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              barGroups: [
+                for (var i = 0; i < e.semana.length; i++)
+                  BarChartGroupData(x: i, barsSpace: 3, barRods: [
+                    BarChartRodData(
+                        toY: e.semana[i].timerMl / 1000,
+                        width: 9,
+                        color: const Color(0xFFB0BEC5),
+                        borderRadius: BorderRadius.circular(3)),
+                    BarChartRodData(
+                        toY: e.semana[i].realMl / 1000,
+                        width: 9,
+                        color: e.semana[i].parcial ? const Color(0xFF81C784) : const Color(0xFF2E7D32),
+                        borderRadius: BorderRadius.circular(3)),
+                  ]),
+              ],
+            )),
+          ),
+          const SizedBox(height: 6),
+          Wrap(spacing: 14, children: [
+            _LegBar('Temporizador (L)', const Color(0xFFB0BEC5)),
+            _LegBar('Minha Horta (L)', const Color(0xFF2E7D32)),
+          ]),
+        ]),
+      ),
+    ]);
+  }
+}
+
+class _LegBar extends StatelessWidget {
+  final String nome;
+  final Color cor;
+  const _LegBar(this.nome, this.cor);
+
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: cor, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 5),
+        Text(nome, style: Theme.of(context).textTheme.bodySmall),
+      ]);
 }

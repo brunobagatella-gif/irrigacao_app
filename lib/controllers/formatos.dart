@@ -5,6 +5,8 @@ String fmtNum(double v, [int casas = 1]) => v.toStringAsFixed(casas).replaceAll(
 
 String fmtHora(DateTime t) => DateFormat('HH:mm').format(t);
 String fmtDataHora(DateTime t) => DateFormat('dd/MM HH:mm').format(t);
+String fmtData(DateTime t) => DateFormat('dd/MM/yyyy').format(t);
+String fmtDiaCurto(DateTime t) => const ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'][t.weekday - 1];
 
 String fmtIdade(Duration d) {
   if (d.inSeconds < 5) return 'agora';

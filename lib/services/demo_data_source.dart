@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import '../models/comandos.dart';
+import '../models/config_cultivo.dart';
 import '../models/leitura.dart';
+import 'cultivo.dart';
 import 'data_source.dart';
 import 'fuzzy.dart';
 
@@ -12,10 +14,13 @@ import 'fuzzy.dart';
 /// Os cenários (calor, chuva...) mudam o clima virtual na hora.
 class DemoDataSource implements DataSource {
   DemoDataSource({this.vazaoMlS = 33.3}) {
-    _t = DateTime.now().subtract(const Duration(hours: 24));
+    _t = DateTime.now().subtract(const Duration(days: 7));
     _inicioDia = _t;
-    for (var i = 0; i < 288; i++) {
-      _passo(emitir: false); // 24 h de histórico prévio
+    // plantio virtual 30 dias antes do início do histórico
+    _cfg = ConfigCultivo(
+        plantioEpoch: _t.subtract(const Duration(days: 30)).millisecondsSinceEpoch ~/ 1000);
+    for (var i = 0; i < 7 * 288; i++) {
+      _passo(emitir: false); // 7 dias de histórico prévio
     }
     _timer = Timer.periodic(const Duration(seconds: 3), (_) => _passo());
   }
@@ -35,12 +40,16 @@ class DemoDataSource implements DataSource {
   final List<double> _soloHist = [];
   final List<double> _tempHist = [];
   final List<Leitura> _hist = [];
+  final List<Leitura> _irrig = [];
   Leitura? _atual;
+  late ConfigCultivo _cfg;
 
   final _atualCtrl = StreamController<Leitura?>.broadcast();
   final _histCtrl = StreamController<List<Leitura>>.broadcast();
   final _cmdCtrl = StreamController<Comandos>.broadcast();
   final _cenCtrl = StreamController<String>.broadcast();
+  final _cfgCtrl = StreamController<ConfigCultivo>.broadcast();
+  final _irrCtrl = StreamController<List<Leitura>>.broadcast();
 
   double _gauss() {
     final u1 = math.max(_rng.nextDouble(), 1e-9), u2 = _rng.nextDouble();
@@ -66,11 +75,11 @@ class DemoDataSource implements DataSource {
     }
     final temp = tBase + tAmp * onda + _gauss() * 0.6;
     final ar = (arBase - 15 * onda + _gauss() * 2).clamp(15, 99).toDouble();
-    final altura = 60 / (1 + math.exp(-0.08 * (_dia - 35))) + _gauss() * 0.3;
+    final altura = 0.97 * Cultivo.alturaEsperada(_dia) + _gauss() * 0.3;
 
     // balanço hídrico simplificado (% por 5 min)
     final kc = Fuzzy.calcular(_solo, temp, altura).kc;
-    final perda = (0.025 + 0.006 * math.max(0, temp - 10)) * (1 - ar / 200) * kc * et;
+    final perda = 0.5 * (0.025 + 0.006 * math.max(0, temp - 10)) * (1 - ar / 200) * kc * et;
     _solo -= perda;
     if (_cenario == 'chuva' && _rng.nextDouble() < 0.015) _solo += 2 + _rng.nextDouble() * 4;
     if (_solo > 60) _solo -= (_solo - 60) * 0.02; // drenagem acima da capacidade de campo
@@ -133,10 +142,12 @@ class DemoDataSource implements DataSource {
     );
     _atual = l;
     _hist.add(l);
-    if (_hist.length > 2000) _hist.removeAt(0);
+    if (_hist.length > 2100) _hist.removeAt(0);
+    if (l.irrigou) _irrig.add(l);
     if (emitir) {
       _atualCtrl.add(l);
       _histCtrl.add(List.unmodifiable(_hist));
+      if (l.irrigou) _irrCtrl.add(List.unmodifiable(_irrig));
     }
   }
 
@@ -195,6 +206,40 @@ class DemoDataSource implements DataSource {
   }
 
   @override
+  Stream<ConfigCultivo> config() async* {
+    yield _cfg;
+    yield* _cfgCtrl.stream;
+  }
+
+  @override
+  Stream<List<Leitura>> irrigacoes() async* {
+    yield List.unmodifiable(_irrig);
+    yield* _irrCtrl.stream;
+  }
+
+  @override
+  Future<List<AlturaDia>> alturaDiaria(DateTime inicio, DateTime fim) async {
+    final plantio = _cfg.plantio ?? inicio;
+    final r = math.Random(11);
+    final out = <AlturaDia>[];
+    for (var d = DateTime(inicio.year, inicio.month, inicio.day, 12);
+        !d.isAfter(fim);
+        d = d.add(const Duration(days: 1))) {
+      final dia = d.difference(plantio).inHours / 24;
+      if (dia < 0) continue;
+      final alt = 0.97 * Cultivo.alturaEsperada(dia) + (r.nextDouble() - 0.5) * 1.2;
+      out.add(AlturaDia(d, math.max(0.0, alt)));
+    }
+    return out;
+  }
+
+  @override
+  Future<void> setConfig(ConfigCultivo c) async {
+    _cfg = c;
+    _cfgCtrl.add(c);
+  }
+
+  @override
   Future<void> setAuto(bool v) async {
     _cmd = _cmd.copyWith(auto: v);
     _cmdCtrl.add(_cmd);
@@ -225,5 +270,7 @@ class DemoDataSource implements DataSource {
     _histCtrl.close();
     _cmdCtrl.close();
     _cenCtrl.close();
+    _cfgCtrl.close();
+    _irrCtrl.close();
   }
 }

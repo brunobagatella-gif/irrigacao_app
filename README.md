@@ -6,13 +6,21 @@ App do TCC (Facens) que mostra, explica e controla o sistema ESP32 + Fuzzy Mamda
 
 | Aba | O que mostra |
 |---|---|
-| **Início** | Status da irrigação, 4 sensores com o conjunto fuzzy atual (solo "baixo", fase "floração"...), barra de faixas de umidade, a última decisão (Fuzzy×Kc → MLP → Decisão) explicada em linguagem natural, e o resumo do dia (água, irrigações, bomba usada/60 s). |
-| **Histórico** | Gráficos de 6/12/24 h: solo (com faixa ideal, pontos de irrigação e projeção de 6 h pela tendência das últimas 4 h), temperatura, umidade do ar e altura. |
-| **Decisões** | Log da IA filtrável (relevantes, irrigações, bloqueios, todas). Tocando num item, abre o raciocínio passo a passo e os dados do ciclo. |
-| **Controle** | Liga/desliga o automático e a rede neural, irrigação manual (1–15 s) com confirmação, travas de segurança do firmware e painel de cenários climáticos. |
-| **Configurações** | Fonte de dados (Firebase ou demonstração), URL do banco, limite de "offline", vazão da bomba, quantidade de histórico. |
+| **Início** | Saúde da planta (ilustração do feijoeiro que muda com o solo), conforto hídrico das últimas 24 h (meta de 90 % do relatório), próxima rega estimada, sensores, a última decisão da IA explicada e o resumo do dia. |
+| **Histórico** | Economia de água contra um temporizador fixo (ciclo e últimos 7 dias) e gráficos de 6/12/24 h de solo (com projeção), temperatura, umidade do ar e altura. |
+| **Cultivo** | Dia do ciclo, fase do feijoeiro e Kc, linha do tempo das fases e o gráfico de crescimento real (HC-SR04) contra a curva logística do relatório. |
+| **Decisões** | Log da IA filtrável, com o raciocínio passo a passo de cada decisão. |
+| **Controle** | Automático, rede neural, irrigação manual, travas de segurança e cenários climáticos. |
+| **Sininho** | Alertas detectados no histórico: solo crítico, limite diário, calor, ESP32 offline, regas manuais. |
+| **Configurações** | Fonte de dados, data do plantio, temporizador de referência da economia, URL do banco e parâmetros. |
 
-A fonte de dados (Firebase ou demonstração) aparece só nas Configurações. Quando o firmware está em `TEST_MODE`, o Início mostra o selo "Modo teste".
+A data do plantio e o temporizador de referência ficam em `/config` no Firebase, então valem para o celular e o site ao mesmo tempo.
+
+### Como as métricas são calculadas
+- **Conforto hídrico:** porcentagem das leituras com o solo entre 35 % e 62 % (miolo do conjunto fuzzy "ideal").
+- **Próxima rega:** regressão linear da umidade nas últimas 4 h; mostra quando o solo deve chegar a 35 %.
+- **Economia:** soma do volume irrigado por dia (`/historico` com `irrigado_s > 0`) contra `regas × segundos × vazão` do temporizador fixo, só em dias completos. Pode dar negativo: aí o sistema gastou mais que o temporizador.
+- **Crescimento:** uma leitura de altura por dia (meio-dia), buscada por chave do Firebase sem baixar o histórico inteiro.
 
 ## Arquitetura (MVC simplificado, como no relatório 7.6)
 
@@ -59,34 +67,18 @@ flutter build web              # gera o site em build/web
 ```
 Para hospedar no Firebase Hosting, use o `firebase.json` já incluído: `npm i -g firebase-tools`, `firebase login`, `firebase init hosting` (mantenha os arquivos existentes) e `firebase deploy`.
 
-> Sem o Firebase configurado, o app abre no modo demonstração (cultivo virtual). Para ver os dados do ESP32, siga "Conectar ao Firebase" abaixo e envie o `lib/firebase_options.dart` gerado para o GitHub. O site será recompilado.
+> O app já abre conectado ao banco do projeto. Para apresentar sem o ESP32, escolha **Demonstração local** nas Configurações.
 
 ## Conectar ao Firebase
 
-### Passo a passo (no computador com Flutter)
+O app conversa com o Realtime Database pela **API REST**, do mesmo jeito que o ESP32 no `main.cpp`. Não precisa de SDK, `flutterfire`, `firebase_options.dart` nem `google-services.json`: só a URL do banco.
 
-1. Instale o Flutter (3.19 ou mais novo) e confira com `flutter doctor`.
-2. Na pasta do projeto, gere as pastas de plataforma (os arquivos existentes não são sobrescritos):
-   ```
-   flutter create --org br.facens --project-name irrigacao_app --platforms android,ios,web .
-   flutter pub get
-   ```
-3. Só com isso o app já abre no **modo demonstração**: `flutter run`
-4. Para conectar ao Firebase:
-   ```
-   dart pub global activate flutterfire_cli
-   flutterfire configure        # escolha o projeto; gera lib/firebase_options.dart
-   ```
-   - No console do Firebase, crie o **Realtime Database** e cole as regras de `firebase/database.rules.json` (abertas, **só para teste**).
-   - Em `secrets.h` do firmware, coloque `FIREBASE_HOST` com o mesmo host do banco.
-   - Nas Configurações do app, escolha **Firebase**. Se o `firebase_options.dart` vier sem `databaseURL`, cole o host no campo "URL do Realtime Database".
-5. Testes do fuzzy (confere o port em Dart contra o Python): `flutter test`
+- Banco padrão (já no código, em `lib/services/firebase_data_source.dart`): `controle-de-irrigacao-co-e3c37-default-rtdb.firebaseio.com`
+- Para trocar sem recompilar: Configurações > Firebase > URL do Realtime Database.
+- No console do Firebase: Realtime Database > **Regras** > cole `firebase/database.rules.json` e publique. Elas abrem leitura e escrita (**só para o TCC**) e criam o índice `irrigado_s`, usado na economia de água.
+- No firmware (`secrets.h`): `#define FIREBASE_HOST "controle-de-irrigacao-co-e3c37-default-rtdb.firebaseio.com"`
 
-### Android
-- Release precisa da permissão de internet. Em `android/app/src/main/AndroidManifest.xml`, antes de `<application>`:
-  `<uses-permission android:name="android.permission.INTERNET"/>`
-- Se o build reclamar de `minSdkVersion`, use 23 em `android/app/build.gradle`.
-- Se o `flutterfire configure` atualizar os pacotes Firebase para uma versão maior, rode `flutter pub upgrade --major-versions`.
+Atualização: estado atual e comandos a cada 3 s, histórico novo a cada 10 s (só os registros novos), configurações a cada 20 s. Como o ESP32 envia a cada 30 s (`CLOUD_PUSH_MS`), o atraso percebido é dominado pelo firmware.
 
 ## Ajuste no firmware (`firmware/main.cpp`)
 
