@@ -53,7 +53,9 @@ class AppController extends ChangeNotifier {
   AppController({required this.prefs}) {
     _usarDemo = prefs.getBool('usarDemo') ?? false;
     _dbUrl = prefs.getString('dbUrl') ?? '';
-    _offlineS = prefs.getInt('offlineS') ?? 90;
+    // o firmware envia à nuvem a cada 5 min: offline só após 10 min sem dados
+    final off = prefs.getInt('offlineS');
+    _offlineS = (off == null || off < 600) ? 600 : off;
     // vazão medida no conjunto completo (Tabela 5): 10,0 mL/s; 33,3 era a estimativa antiga
     final v = prefs.getDouble('vazao');
     _vazao = (v == null || (v - 33.3).abs() < 0.01) ? 10.0 : v;

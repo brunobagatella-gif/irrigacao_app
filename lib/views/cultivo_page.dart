@@ -241,10 +241,30 @@ class _GraficoCrescimento extends StatelessWidget {
     final estilo = TextStyle(fontSize: 10, color: cs.onSurface.withAlpha(150));
 
     final esperado = [for (var d = 0; d <= Cultivo.cicloDias; d += 2) FlSpot(d.toDouble(), Cultivo.alturaEsperada(d.toDouble()))];
-    final medidos = [
-      for (final a in c.alturas ?? const <AlturaDia>[])
-        FlSpot(a.dia.difference(plantio).inHours / 24, a.altura),
+    final lista = c.alturas ?? const <AlturaDia>[];
+    final reais = [
+      for (final a in lista) FlSpot(a.dia.difference(plantio).inHours / 24, a.altura),
     ]..sort((a, b) => a.x.compareTo(b.x));
+    final xsReais = {for (final r in reais) r.x};
+    // Entre duas medições com régua, a linha segue o formato da curva de crescimento do feijoeiro,
+    // dia a dia, passando exatamente pelos valores medidos (os pontos marcam as medições).
+    final manual = lista.isNotEmpty && lista.every((a) => a.manual);
+    final medidos = <FlSpot>[];
+    if (manual && reais.length >= 2) {
+      for (var i = 0; i < reais.length - 1; i++) {
+        final a = reais[i], b = reais[i + 1];
+        final ea = Cultivo.alturaEsperada(a.x), eb = Cultivo.alturaEsperada(b.x);
+        for (var d = a.x; d < b.x - 0.01; d += 1) {
+          final f = (eb - ea).abs() < 1e-6
+              ? (d - a.x) / (b.x - a.x)
+              : (Cultivo.alturaEsperada(d) - ea) / (eb - ea);
+          medidos.add(FlSpot(d, a.y + (b.y - a.y) * f));
+        }
+      }
+      medidos.add(reais.last);
+    } else {
+      medidos.addAll(reais);
+    }
     final maxY = math.max(65.0, medidos.isEmpty ? 0.0 : medidos.map((e) => e.y).reduce(math.max) + 5);
 
     if (c.carregandoAlturas && medidos.isEmpty) {
@@ -291,8 +311,10 @@ class _GraficoCrescimento extends StatelessWidget {
       lineTouchData: LineTouchData(
         touchTooltipData: LineTouchTooltipData(
           getTooltipItems: (spots) => spots
-              .map((s) => LineTooltipItem('dia ${s.x.toStringAsFixed(0)}\n${fmtNum(s.y, 1)} cm',
-                  const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)))
+              .map((s) => s.barIndex == 1 && !xsReais.contains(s.x)
+                  ? null
+                  : LineTooltipItem('dia ${s.x.toStringAsFixed(0)}\n${fmtNum(s.y, 1)} cm',
+                      const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)))
               .toList(),
         ),
       ),
@@ -314,6 +336,7 @@ class _GraficoCrescimento extends StatelessWidget {
             barWidth: 2.6,
             belowBarData: BarAreaData(show: true, color: const Color(0x1A2E7D32)),
             dotData: FlDotData(
+              checkToShowDot: (spot, bar) => xsReais.contains(spot.x),
               getDotPainter: (spot, p, bar, i) =>
                   FlDotCirclePainter(radius: 2.6, color: const Color(0xFF2E7D32), strokeWidth: 0),
             ),
