@@ -93,3 +93,5 @@ if (cloudUp() && (evento || lastCloudMs == 0 || millis() - lastCloudMs >= CLOUD_
 - Regras do banco abertas: para a versão final, use Firebase Auth e regras por usuário.
 - Notificações push (FCM) ficaram para depois: exigem Cloud Functions. Hoje os alertas aparecem dentro do app (offline, solo crítico, bloqueio).
 - Se mudar conjuntos ou regras fuzzy no firmware, atualize `lib/services/fuzzy.dart` (os textos explicativos dependem dele).
+
+_Última atualização do app: 19/11/2026._
