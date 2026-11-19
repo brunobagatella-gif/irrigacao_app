@@ -79,7 +79,8 @@ class CultivoPage extends StatelessWidget {
     final fase = Cultivo.fases[fi];
     final diaInt = dia.floor();
     final faltam = math.max(0, fase.fim - diaInt);
-    final alt = c.atual?.altura;
+    final manuais = [for (final a in c.alturas ?? const <AlturaDia>[]) if (a.manual) a];
+    final alt = manuais.isNotEmpty ? manuais.last.altura : c.atual?.altura;
     final esperado = Cultivo.alturaEsperada(dia);
     final fzAlt = alt == null ? null : Fuzzy.calcular(50, 25, alt).heightIdx;
 
@@ -137,7 +138,7 @@ class CultivoPage extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.only(top: 8, left: 4),
         child: Wrap(spacing: 14, children: const [
-          _Leg('Medido (HC-SR04)', Color(0xFF2E7D32)),
+          _Leg('Medido', Color(0xFF2E7D32)),
           _Leg('Curva do relatório', Color(0xFF9CCC65)),
           _Leg('Hoje', Color(0xFFF06292)),
         ]),

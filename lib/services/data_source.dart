@@ -6,7 +6,8 @@ import '../models/leitura.dart';
 class AlturaDia {
   final DateTime dia;
   final double altura;
-  const AlturaDia(this.dia, this.altura);
+  final bool manual; // medição com régua (/config/medicoes_altura)
+  const AlturaDia(this.dia, this.altura, {this.manual = false});
 }
 
 /// Camada de modelo: de onde vêm os dados.

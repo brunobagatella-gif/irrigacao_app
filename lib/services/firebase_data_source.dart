@@ -226,6 +226,23 @@ class FirebaseDataSource implements DataSource {
 
   @override
   Future<List<AlturaDia>> alturaDiaria(DateTime inicio, DateTime fim) async {
+    // 1) medições com régua em /config/medicoes_altura: {"AAAAMMDD": cm}
+    try {
+      final m = await _get('config/medicoes_altura');
+      if (m is Map && m.isNotEmpty) {
+        final out = <AlturaDia>[];
+        m.forEach((k, v) {
+          final s = k.toString();
+          final cm = v is num ? v.toDouble() : double.tryParse(v.toString());
+          if (s.length != 8 || cm == null) return;
+          final d = DateTime(int.parse(s.substring(0, 4)), int.parse(s.substring(4, 6)),
+              int.parse(s.substring(6, 8)), 12);
+          out.add(AlturaDia(d, cm, manual: true));
+        });
+        if (out.isNotEmpty) return out..sort((a, b) => a.dia.compareTo(b.dia));
+      }
+    } catch (_) {}
+    // 2) sem medições manuais: leitura diária do HC-SR04 no histórico
     final dias = <DateTime>[];
     for (var d = DateTime(inicio.year, inicio.month, inicio.day, 12);
         !d.isAfter(fim);

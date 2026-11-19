@@ -7,9 +7,9 @@ import '../controllers/formatos.dart';
 import '../models/leitura.dart';
 import 'widgets.dart';
 
-enum _Filtro { relevantes, irrigacoes, bloqueios, todas }
+enum _Filtro { todas, automaticas, manuais }
 
-/// Log de decisões da IA com justificativa em linguagem natural (relatório, 7.6).
+/// Irrigações executadas no ciclo, com justificativa em linguagem natural (relatório, 7.6).
 class DecisoesPage extends StatefulWidget {
   const DecisoesPage({super.key});
 
@@ -18,19 +18,29 @@ class DecisoesPage extends StatefulWidget {
 }
 
 class _DecisoesPageState extends State<DecisoesPage> {
-  _Filtro _filtro = _Filtro.relevantes;
+  _Filtro _filtro = _Filtro.todas;
 
   bool _passa(Leitura l) => switch (_filtro) {
-        _Filtro.relevantes => l.relevante,
-        _Filtro.irrigacoes => l.irrigou,
-        _Filtro.bloqueios => l.bloqueado,
         _Filtro.todas => true,
+        _Filtro.automaticas => !l.manual,
+        _Filtro.manuais => l.manual,
       };
+
+  /// Todas as irrigações executadas: as do ciclo inteiro e as que chegaram no histórico recente.
+  List<Leitura> _irrigacoes(AppController c) {
+    final porChave = <String, Leitura>{};
+    for (final l in [...c.irrigacoes, ...c.historico]) {
+      if (!l.irrigou || l.emTeste || l.testMode) continue;
+      porChave[l.id ?? '${l.momento.millisecondsSinceEpoch}'] = l;
+    }
+    final lista = porChave.values.toList()..sort((a, b) => b.momento.compareTo(a.momento));
+    return lista;
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.watch<AppController>();
-    final itens = c.historico.reversed.where(_passa).take(300).toList();
+    final itens = _irrigacoes(c).where(_passa).take(300).toList();
 
     return Column(children: [
       SingleChildScrollView(
@@ -38,10 +48,9 @@ class _DecisoesPageState extends State<DecisoesPage> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
         child: Row(children: [
           for (final (f, nome) in const [
-            (_Filtro.relevantes, 'Relevantes'),
-            (_Filtro.irrigacoes, 'Irrigações'),
-            (_Filtro.bloqueios, 'Bloqueios'),
-            (_Filtro.todas, 'Todas'),
+            (_Filtro.todas, 'Todas as irrigações'),
+            (_Filtro.automaticas, 'Automáticas'),
+            (_Filtro.manuais, 'Manuais'),
           ])
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -55,7 +64,7 @@ class _DecisoesPageState extends State<DecisoesPage> {
       ),
       Expanded(
         child: itens.isEmpty
-            ? const Vazio(icone: Icons.psychology_outlined, texto: 'Nenhuma decisão neste filtro.')
+            ? const Vazio(icone: Icons.water_drop_outlined, texto: 'Nenhuma irrigação neste filtro.')
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 itemCount: itens.length,
@@ -71,12 +80,11 @@ class _ItemDecisao extends StatelessWidget {
   final Leitura l;
   const _ItemDecisao({required this.l});
 
-  (IconData, Color) get _icone {
-    if (l.irrigou) return (Icons.water_drop, const Color(0xFF0277BD));
-    if (l.bloqueado) return (Icons.block, const Color(0xFFC62828));
-    if (l.emTeste) return (Icons.construction, const Color(0xFFE65100));
-    return (Icons.remove_circle_outline, const Color(0xFF78909C));
-  }
+  (IconData, Color) get _icone => l.manual
+      ? (Icons.pan_tool_alt_outlined, const Color(0xFF6D4C41))
+      : (Icons.water_drop, const Color(0xFF0277BD));
+
+  String get _titulo => l.manual ? 'Irrigação manual executada' : 'Irrigação automática executada';
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +98,7 @@ class _ItemDecisao extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(statusAmigavel(l.status), style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            Text(_titulo, style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
             Text('Solo ${fmtNum(l.solo, 0)} % · ${fmtNum(l.temp)} °C · fuzzy ${fmtNum(l.fuzzyS)} s · '
                 'MLP ×${fmtNum(l.mlpMult, 2)}',
@@ -118,7 +126,7 @@ class _ItemDecisao extends StatelessWidget {
         initialChildSize: .6,
         maxChildSize: .92,
         builder: (_, sc) => ListView(controller: sc, padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), children: [
-          Text(statusAmigavel(l.status), style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          Text(_titulo, style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
           Text(fmtDataHora(l.momento), style: tt.bodySmall),
           const SizedBox(height: 16),
           Text('Raciocínio', style: tt.labelLarge),
@@ -143,7 +151,7 @@ class _ItemDecisao extends StatelessWidget {
           _linha('Multiplicador MLP', '×${fmtNum(l.mlpMult, 2)}'),
           _linha('Decisão', '${fmtNum(l.decisaoS, 2)} s'),
           _linha('Irrigado', '${fmtNum(l.irrigadoS, 2)} s · ${fmtVolume(l.volumeMl)}'),
-          _linha('Modo', l.auto ? 'automático' : 'manual'),
+          _linha('Modo', l.manual ? 'manual' : 'automático'),
           const SizedBox(height: 12),
           Text('Texto do firmware', style: tt.labelLarge),
           const SizedBox(height: 4),

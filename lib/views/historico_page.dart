@@ -58,7 +58,7 @@ class _HistoricoPageState extends State<HistoricoPage> {
           _Mini('Água', fmtVolume(r.volumeMl)),
           _Mini('Irrigações', '${r.irrigacoes}'),
           _Mini('Bomba', '${fmtNum(r.segundos, 0)} s'),
-          _Mini('Bloqueios', '${r.bloqueios}'),
+          _Mini('Solo médio', '${fmtNum(_media(dados, (l) => l.solo), 0)} %'),
         ]),
       ),
       const Secao('Umidade do solo'),
@@ -71,7 +71,7 @@ class _HistoricoPageState extends State<HistoricoPage> {
         maxX: proj == null ? 0 : 6,
         faixa: (35.0, 62.0, const Color(0xFF2E7D32)),
         series: [
-          _Serie('Solo', const Color(0xFF6D4C41), [for (final l in pts) FlSpot(x(l), l.solo)],
+          _Serie('Solo', const Color(0xFF6D4C41), _suave(pts, dados, x, (l) => l.solo),
               pontos: {for (final l in irrig) x(l)}),
           if (proj != null)
             _Serie('Projeção 6 h', const Color(0xFF6D4C41), proj, tracejada: true),
@@ -87,7 +87,7 @@ class _HistoricoPageState extends State<HistoricoPage> {
         horas: _horas,
         fim: fim,
         unidade: '°C',
-        series: [_Serie('Temperatura', const Color(0xFFEF6C00), [for (final l in pts) FlSpot(x(l), l.temp)])],
+        series: [_Serie('Temperatura', const Color(0xFFEF6C00), _suave(pts, dados, x, (l) => l.temp))],
       ),
       const Secao('Umidade do ar'),
       _Grafico(
@@ -96,7 +96,7 @@ class _HistoricoPageState extends State<HistoricoPage> {
         minY: 0,
         maxY: 100,
         unidade: '%',
-        series: [_Serie('Ar', const Color(0xFF00838F), [for (final l in pts) FlSpot(x(l), l.ar)])],
+        series: [_Serie('Ar', const Color(0xFF00838F), _suave(pts, dados, x, (l) => l.ar))],
       ),
       const Secao('Altura da planta'),
       _Grafico(
@@ -105,10 +105,38 @@ class _HistoricoPageState extends State<HistoricoPage> {
         unidade: 'cm',
         series: [
           _Serie('Altura', const Color(0xFF558B2F),
-              [for (final l in pts) if (l.altura != null) FlSpot(x(l), l.altura!)]),
+              _suave(pts, dados, x, (l) => l.altura)),
         ],
       ),
     ]);
+  }
+
+  double _media(List<Leitura> d, double Function(Leitura) f) =>
+      d.isEmpty ? 0 : d.map(f).reduce((a, b) => a + b) / d.length;
+
+  /// Curva suavizada por média móvel no tempo (janela proporcional ao período exibido),
+  /// para mostrar a tendência sem o ruído de leitura a leitura. Não altera os dados gravados.
+  List<FlSpot> _suave(List<Leitura> pts, List<Leitura> todos, double Function(Leitura) x,
+      double? Function(Leitura) f) {
+    final meia = Duration(minutes: _horas * 5); // 6 h → ±30 min · 24 h → ±2 h
+    final out = <FlSpot>[];
+    var ini = 0;
+    for (final p in pts) {
+      final t = p.momento;
+      while (ini < todos.length && todos[ini].momento.isBefore(t.subtract(meia))) {
+        ini++;
+      }
+      var soma = 0.0, n = 0;
+      for (var j = ini; j < todos.length && !todos[j].momento.isAfter(t.add(meia)); j++) {
+        final v = f(todos[j]);
+        if (v != null) {
+          soma += v;
+          n++;
+        }
+      }
+      if (n > 0) out.add(FlSpot(x(p), soma / n));
+    }
+    return out;
   }
 
   /// Média por blocos para não desenhar milhares de pontos (em teste o ESP32 envia a cada 30 s).

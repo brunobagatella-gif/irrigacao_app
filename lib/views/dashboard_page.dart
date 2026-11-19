@@ -49,8 +49,6 @@ class DashboardPage extends StatelessWidget {
           texto: 'ESP32 sem enviar dados ${fmtIdade(c.idadeLeitura ?? Duration.zero)}. '
               'Os valores abaixo podem estar desatualizados.',
         ),
-      if (l.bloqueado)
-        Aviso(icone: Icons.block, cor: const Color(0xFFB71C1C), texto: statusAmigavel(l.status)),
 
       // ---------- saúde da planta ----------
       _SaudeCard(l: l, c: c, soilIdx: fz.soilIdx),
@@ -263,8 +261,6 @@ class _SaudeCard extends StatelessWidget {
                 Selo(fmtIdade(c.idadeLeitura!),
                     cor: c.dispositivoOnline ? const Color(0xFF455A64) : Theme.of(context).colorScheme.error,
                     icone: Icons.schedule),
-              if (l.testMode)
-                const Selo('Modo teste', cor: Color(0xFFE65100), icone: Icons.construction_outlined),
               if (c.comandoManualPendente)
                 const Selo('Rega manual pendente', cor: Color(0xFF0277BD), icone: Icons.hourglass_top),
             ]),

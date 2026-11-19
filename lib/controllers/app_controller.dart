@@ -54,7 +54,9 @@ class AppController extends ChangeNotifier {
     _usarDemo = prefs.getBool('usarDemo') ?? false;
     _dbUrl = prefs.getString('dbUrl') ?? '';
     _offlineS = prefs.getInt('offlineS') ?? 90;
-    _vazao = prefs.getDouble('vazao') ?? 33.3;
+    // vazão medida no conjunto completo (Tabela 5): 10,0 mL/s; 33,3 era a estimativa antiga
+    final v = prefs.getDouble('vazao');
+    _vazao = (v == null || (v - 33.3).abs() < 0.01) ? 10.0 : v;
     _limiteHist = prefs.getInt('limiteHist') ?? 2200;
     _alertasVistos = prefs.getInt('alertasVistos') ?? 0;
     _conectarFonte();
